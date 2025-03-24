@@ -1,5 +1,8 @@
 #include "../../proxy/Proxy.hpp"
+#include "Geode/ui/Notification.hpp"
 #include "../../proxy/HttpInfo.hpp"
+
+#include <rrp/2.2/endpoints/serialize_all.hpp>
 
 using namespace nlohmann;
 using namespace geode::prelude;
@@ -16,11 +19,22 @@ const LookupTable<ContentType, proxy::converters::Converter*> proxy::HttpInfo::c
 });
 
 proxy::HttpInfo::Content proxy::HttpInfo::getContent(const bool raw, const ContentType originalContentType, const std::string& path, const std::string& original) {
+    
+    
     if (HttpInfo::converters.contains(originalContentType)) {
+        geode::log::info("{}", path);
         const converters::Converter* converter = HttpInfo::converters.at(originalContentType);
 
         if (!raw) {
-            return { converter->resultContentType(), converter->convert(path, original) };
+            if(auto r = rrp::v22::rpp_json(original, path))
+            {
+                return {enums::ContentType::JSON, *r};
+            }
+            else
+            {
+                geode::Notification::create("Fallback parser!", NotificationIcon::Error)->show();
+                return { converter->resultContentType(), converter->convert(path, original) };
+            }
         } else if (converter->needsSanitization()) {
             return { originalContentType, converter->toRaw(path, converter->convert(path, original)) };
         }
